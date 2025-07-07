@@ -27,10 +27,8 @@ function initializeApp() {
     // Set up form event listeners
     setupEventListeners();
     
-    // Initialize default admins if not exists
-    if (!localStorage.getItem('admins')) {
-        localStorage.setItem('admins', JSON.stringify(admins));
-    }
+    // Always ensure latest admin credentials are available
+    localStorage.setItem('admins', JSON.stringify(admins));
     
     // Check if user is logged in
     const savedUser = localStorage.getItem('currentUser');
@@ -106,11 +104,12 @@ function handleStudentLogin(e) {
     
     const email = document.getElementById('studentEmail').value;
     const password = document.getElementById('studentPassword').value;
+    const departmentToComplain = document.getElementById('studentDepartment').value;
     
     const user = users.find(u => u.email === email && u.password === password);
     
     if (user) {
-        currentUser = { ...user, type: 'student' };
+        currentUser = { ...user, type: 'student', departmentToComplain };
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         closeModal('studentLoginModal');
         showNotification('Login successful!', 'success');
@@ -164,7 +163,9 @@ function handleAdminLogin(e) {
     const password = document.getElementById('adminPassword').value;
     const department = document.getElementById('adminDepartment').value;
     
-    const admin = admins.find(a => a.email === email && a.password === password && a.department === department);
+    // Get fresh admin data from localStorage
+    const freshAdmins = JSON.parse(localStorage.getItem('admins')) || admins;
+    const admin = freshAdmins.find(a => a.email === email && a.password === password && a.department === department);
     
     if (admin) {
         currentUser = { ...admin, type: 'admin' };
@@ -173,7 +174,7 @@ function handleAdminLogin(e) {
         showNotification('Admin login successful!', 'success');
         showAdminDashboard();
     } else {
-        showNotification('Invalid admin credentials!', 'error');
+        showNotification('Invalid admin credentials! Please check email, password, and department.', 'error');
     }
 }
 
@@ -264,7 +265,8 @@ function showStudentDashboard() {
                         <div class="file-upload-area" onclick="document.getElementById('complaintFiles').click();">
                             <i class="fas fa-cloud-upload-alt" style="font-size: 2rem; color: #667eea;"></i>
                             <p>Click to upload files or drag and drop</p>
-                            <input type="file" id="complaintFiles" multiple style="display: none;" onchange="handleFileUpload(this)">
+                            <p style="font-size: 0.9rem; opacity: 0.8;">Supports: Images, Videos, Audio, Documents, PDFs (Max 5MB each)</p>
+                            <input type="file" id="complaintFiles" multiple accept="*/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.mp4,.avi,.mov,.wmv,.mp3,.wav,.aac,.pdf,.doc,.docx,.txt,.xlsx,.ppt,.pptx" style="display: none;" onchange="handleFileUpload(this)">
                         </div>
                         <div id="uploadedFiles"></div>
                     </div>
@@ -524,8 +526,15 @@ function handleFileUpload(input) {
     window.uploadedFiles = window.uploadedFiles || [];
     
     files.forEach(file => {
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
-            showNotification(`File ${file.name} is too large (max 5MB)`, 'error');
+        // Check file size (5MB limit)
+        if (file.size > 5 * 1024 * 1024) {
+            showNotification(`File "${file.name}" is too large (max 5MB). Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`, 'error');
+            return;
+        }
+        
+        // Check if file already exists
+        if (window.uploadedFiles.some(f => f.name === file.name)) {
+            showNotification(`File "${file.name}" is already uploaded`, 'error');
             return;
         }
         
@@ -534,20 +543,81 @@ function handleFileUpload(input) {
             window.uploadedFiles.push({
                 name: file.name,
                 data: e.target.result,
-                size: file.size
+                size: file.size,
+                type: file.type || 'unknown'
             });
             updateFileDisplay();
+            showNotification(`File "${file.name}" uploaded successfully`, 'success');
         };
+        
+        reader.onerror = function() {
+            showNotification(`Error uploading file "${file.name}"`, 'error');
+        };
+        
         reader.readAsDataURL(file);
     });
 }
 
 function updateFileDisplay() {
     const container = document.getElementById('uploadedFiles');
+    
+    function getFileIcon(fileName, fileType) {
+        const ext = fileName.split('.').pop().toLowerCase();
+        
+        // Image files
+        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(ext) || fileType.startsWith('image/')) {
+            return 'fas fa-image';
+        }
+        // Video files
+        if (['mp4', 'avi', 'mov', 'wmv', 'mkv', 'webm'].includes(ext) || fileType.startsWith('video/')) {
+            return 'fas fa-video';
+        }
+        // Audio files
+        if (['mp3', 'wav', 'aac', 'ogg', 'flac'].includes(ext) || fileType.startsWith('audio/')) {
+            return 'fas fa-music';
+        }
+        // PDF files
+        if (ext === 'pdf' || fileType === 'application/pdf') {
+            return 'fas fa-file-pdf';
+        }
+        // Word documents
+        if (['doc', 'docx'].includes(ext) || fileType.includes('word')) {
+            return 'fas fa-file-word';
+        }
+        // Excel files
+        if (['xls', 'xlsx'].includes(ext) || fileType.includes('sheet')) {
+            return 'fas fa-file-excel';
+        }
+        // PowerPoint files
+        if (['ppt', 'pptx'].includes(ext) || fileType.includes('presentation')) {
+            return 'fas fa-file-powerpoint';
+        }
+        // Text files
+        if (['txt', 'md'].includes(ext) || fileType.startsWith('text/')) {
+            return 'fas fa-file-alt';
+        }
+        // Default file icon
+        return 'fas fa-file';
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
     container.innerHTML = window.uploadedFiles.map((file, index) => `
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 5px;">
-            <span><i class="fas fa-file"></i> ${file.name}</span>
-            <button type="button" onclick="removeFile(${index})" style="background: none; border: none; color: #dc3545; cursor: pointer;">
+        <div class="uploaded-file-item" style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; padding: 0.8rem; background: #f8f9fa; border-radius: 8px; border-left: 3px solid #667eea;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="${getFileIcon(file.name, file.type)}" style="color: #667eea; font-size: 1.2rem;"></i>
+                <div>
+                    <div style="font-weight: 600; color: #333;">${file.name}</div>
+                    <div style="font-size: 0.8rem; color: #666;">${formatFileSize(file.size)}</div>
+                </div>
+            </div>
+            <button type="button" onclick="removeFile(${index})" style="background: none; border: none; color: #dc3545; cursor: pointer; font-size: 1.1rem; padding: 0.2rem;" title="Remove file">
                 <i class="fas fa-times"></i>
             </button>
         </div>
@@ -816,7 +886,7 @@ function generateAIResponse(message) {
         'time': 'Typical response times:\n• Admin acknowledgment: 24-48 hours\n• Initial response: 2-3 business days\n• Resolution: Depends on complexity\n• Auto-escalation: After 3 days',
         
         // Developer information
-        'developer': 'Portal developed by Vaibhav Choudhary\nEmail: vaibhavchoudhary@gmail.com\nFull Stack Developer specializing in web applications',
+        'developer': 'Portal developed by Vaibhav Choudhary\nEmail: vaibhavchoudhary@gmail.com\nWebsite Developer specializing in web applications',
         'contact': 'Contact information:\n• Developer: Vaibhav Choudhary (vaibhavchoudhary@gmail.com)\n• College Admin: admin@college.edu\n• 24/7 Support: This AI chatbot',
         
         // Features

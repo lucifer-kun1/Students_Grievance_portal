@@ -265,11 +265,12 @@ body {
     height: 100%;
     background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(5px);
+    overflow-y: auto;
 }
 
 .modal-content {
     background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
-    margin: 5% auto;
+    margin: 2rem auto;
     padding: 2rem;
     border-radius: 20px;
     width: 90%;
@@ -277,6 +278,8 @@ body {
     position: relative;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
     animation: modalSlideIn 0.3s ease;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 @keyframes modalSlideIn {
@@ -814,7 +817,31 @@ body {
     
     .modal-content {
         width: 95%;
-        padding: 1.5rem;
+        padding: 1rem;
+        margin: 1rem auto;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+    
+    .modal-content h2 {
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 0.6rem;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    .btn {
+        padding: 0.7rem 1.2rem;
+        font-size: 0.9rem;
     }
     
     .chatbot-btn {

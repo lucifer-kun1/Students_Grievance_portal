@@ -118,7 +118,7 @@
                         </div>
                         <h3>Developer</h3>
                         <p><strong>Vaibhav Choudhary</strong></p>
-                        <p>Full Stack Developer</p>
+                        <p>Website Developer</p>
                         <p><i class="fas fa-envelope"></i> vaibhavchoudhary@gmail.com</p>
                         <p><i class="fas fa-phone"></i> Available for technical support</p>
                     </div>
@@ -161,6 +161,23 @@
                 <div class="form-group">
                     <label for="studentPassword">Password</label>
                     <input type="password" id="studentPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="studentDepartment">Department (to complain about)</label>
+                    <select id="studentDepartment" required>
+                        <option value="">Select Department</option>
+                        <option value="Computer Science">Computer Science</option>
+                        <option value="IT">Information Technology</option>
+                        <option value="Electronics">Electronics</option>
+                        <option value="Mechanical">Mechanical</option>
+                        <option value="Civil">Civil</option>
+                        <option value="BCOM">BCOM</option>
+                        <option value="BMS">BMS</option>
+                        <option value="JR.CLG Science-11">JR.CLG Science-11</option>
+                        <option value="JR.CLG Science-12">JR.CLG Science-12</option>
+                        <option value="JR.CLG Commerce-11">JR.CLG Commerce-11</option>
+                        <option value="JR.CLG Commerce-12">JR.CLG Commerce-12</option>
+                    </select>
                 </div>
                 <button type="submit" class="btn btn-primary">
                     <i class="fas fa-sign-in-alt"></i> Login
@@ -218,6 +235,9 @@
             </form>
         </div>
     </div>
+
+    <!-- Admin Login Modal -->
+    <div id="adminLoginModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('adminLoginModal')">&times;</span>
             <h2><i class="fas fa-user-shield"></i> Admin Login</h2>
