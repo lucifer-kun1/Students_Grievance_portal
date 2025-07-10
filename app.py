@@ -68,8 +68,8 @@ def dashboard():
     with get_db() as db:
         if session['role'] == 'student':
             complaints = db.execute("SELECT * FROM complaints WHERE student_id=?", (session['user_id'],)).fetchall()
-        else:
-            complaints = db.execute("SELECT * FROM complaints WHERE department=?", (session['department'],)).fetchall()
+        elif session['role'] == 'admin':
+            complaints = db.execute("SELECT * FROM complaints WHERE status='Pending' OR status='Escalated' OR escalated=1").fetchall()
     return render_template('dashboard.html', complaints=complaints)
 
 @app.route('/complaint/new', methods=['GET', 'POST'])

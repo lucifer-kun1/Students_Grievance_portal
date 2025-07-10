@@ -538,23 +538,47 @@ function handleFileUpload(input) {
             return;
         }
         
+        // Validate file type
+        const allowedTypes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+            'video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/mkv', 'video/webm',
+            'audio/mp3', 'audio/wav', 'audio/aac', 'audio/ogg', 'audio/flac',
+            'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        ];
+        
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'mp4', 'avi', 'mov', 'wmv', 'mkv', 'webm', 'mp3', 'wav', 'aac', 'ogg', 'flac', 'pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx'];
+        
+        if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+            showNotification(`File type "${file.type || fileExtension}" is not supported for file "${file.name}"`, 'error');
+            return;
+        }
+        
         const reader = new FileReader();
         reader.onload = function(e) {
             window.uploadedFiles.push({
                 name: file.name,
                 data: e.target.result,
                 size: file.size,
-                type: file.type || 'unknown'
+                type: file.type || 'unknown',
+                extension: fileExtension
             });
             updateFileDisplay();
             showNotification(`File "${file.name}" uploaded successfully`, 'success');
         };
         
         reader.onerror = function() {
-            showNotification(`Error uploading file "${file.name}"`, 'error');
+            showNotification(`Error uploading file "${file.name}". Please try again.`, 'error');
         };
         
-        reader.readAsDataURL(file);
+        // Handle different file types appropriately
+        if (file.type.startsWith('text/')) {
+            reader.readAsText(file);
+        } else {
+            reader.readAsDataURL(file);
+        }
     });
 }
 
@@ -742,7 +766,27 @@ function refreshComplaints() {
 }
 
 function refreshAdminComplaints() {
-    document.getElementById('adminComplaintsContainer').innerHTML = renderAdminComplaints();
+    // Force reload the complaints data and refresh dashboard
+    if (currentUser && currentUser.type === 'admin') {
+        // Update stats first
+        updateAdminStats();
+        // Then update complaints list
+        document.getElementById('adminComplaintsContainer').innerHTML = renderAdminComplaints();
+        showNotification('Complaints refreshed!', 'success');
+    }
+}
+
+function updateAdminStats() {
+    const departmentComplaints = getDepartmentComplaints();
+    
+    // Update stats in the dashboard
+    const statCards = document.querySelectorAll('.stat-number');
+    if (statCards.length >= 4) {
+        statCards[0].textContent = departmentComplaints.length;
+        statCards[1].textContent = departmentComplaints.filter(c => c.status === 'pending').length;
+        statCards[2].textContent = departmentComplaints.filter(c => c.status === 'processing').length;
+        statCards[3].textContent = departmentComplaints.filter(c => c.status === 'escalated').length;
+    }
 }
 
 // Chatbot functions
@@ -871,7 +915,8 @@ function generateAIResponse(message) {
         'junior college': 'Junior College sections for 11th and 12th with Science and Commerce streams are available.',
         
         // Admin information
-        'admin': 'Admin accounts by department:\n• CS: admin@cs.edu\n• IT: admin@it.edu\n• Electronics: admin@ee.edu\n• Mechanical: admin@me.edu\n• Civil: admin@ce.edu\n• BCOM: admin@bcom.edu\n• BMS: admin@bms.edu\n• JR.CLG: admin@jr*.edu\nPassword: admin123',
+        'admin': 'Admin accounts are available for department management. Please contact the college administration for admin access credentials.',
+        'admin login': 'To access admin features, use the Admin Login button on the main page. Admin credentials are managed by the college administration.',
         'login': 'Students can register and login. Admins use pre-configured accounts with department-specific access.',
         'password': 'Forgot password? Currently using localStorage - clear browser data to reset. In production, this would have proper password recovery.',
         
