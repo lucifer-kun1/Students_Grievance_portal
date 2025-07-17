@@ -350,8 +350,11 @@ function showAdminDashboard() {
                                 <option value="Other">Other</option>
                             </select>
                         </div>
-                        <button class="btn btn-secondary" onclick="refreshAdminComplaints()" style="width: 100%;">
+                        <button class="btn btn-secondary" onclick="refreshAdminComplaints()" style="width: 100%; margin-bottom: 1rem;">
                             <i class="fas fa-refresh"></i> Refresh
+                        </button>
+                        <button class="btn btn-primary" onclick="showMonthlyReportModal()" style="width: 100%;">
+                            <i class="fas fa-chart-bar"></i> Monthly Report
                         </button>
                     </div>
                     
@@ -362,6 +365,37 @@ function showAdminDashboard() {
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Monthly Report Modal -->
+        <div id="monthlyReportModal" class="modal">
+            <div class="modal-content" style="max-width: 600px;">
+                <span class="close" onclick="closeModal('monthlyReportModal')">&times;</span>
+                <h2><i class="fas fa-chart-bar"></i> Generate Monthly Report</h2>
+                <form id="monthlyReportForm">
+                    <div class="form-group">
+                        <label for="reportMonth">Select Month</label>
+                        <input type="month" id="reportMonth" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reportFormat">Report Format</label>
+                        <select id="reportFormat" required>
+                            <option value="pdf">PDF Report</option>
+                            <option value="csv">CSV Data</option>
+                            <option value="excel">Excel Report</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="includeCharts" checked>
+                            Include Charts and Graphs
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Generate & Download Report
+                    </button>
+                </form>
             </div>
         </div>
         
@@ -871,8 +905,28 @@ function addChatMessage(message, sender) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
+// Global chatbot admin authentication state
+let chatbotAdminAuthenticated = false;
+let chatbotAdminData = null;
+let pendingComplaintRequest = null;
+
 function generateAIResponse(message) {
     const lowerMessage = message.toLowerCase();
+    
+    // Check if user is requesting complaint information
+    if (lowerMessage.includes('new complaints') || lowerMessage.includes('complaints list') || lowerMessage.includes('show complaints') || lowerMessage.includes('view complaints')) {
+        if (!chatbotAdminAuthenticated) {
+            pendingComplaintRequest = lowerMessage;
+            return 'To access complaint information, please provide your admin credentials.\n\nPlease enter your admin email:';
+        } else {
+            return handleComplaintRequest(lowerMessage);
+        }
+    }
+    
+    // Check if user is providing admin credentials
+    if (pendingComplaintRequest && !chatbotAdminAuthenticated) {
+        return handleAdminLogin(message);
+    }
     
     // Enhanced AI responses with comprehensive coverage
     const responses = {
@@ -1030,3 +1084,234 @@ window.downloadFile = downloadFile;
 window.toggleChatbot = toggleChatbot;
 window.closeChatbot = closeChatbot;
 window.sendChatMessage = sendChatMessage;
+window.showMonthlyReportModal = showMonthlyReportModal;
+window.generateMonthlyReport = generateMonthlyReport;
+
+// Monthly Report Functions
+function showMonthlyReportModal() {
+    document.getElementById('monthlyReportModal').style.display = 'block';
+    
+    // Set default month to current month
+    const now = new Date();
+    const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    document.getElementById('reportMonth').value = currentMonth;
+    
+    // Add event listener to the form
+    document.getElementById('monthlyReportForm').addEventListener('submit', generateMonthlyReport);
+}
+
+function generateMonthlyReport(e) {
+    e.preventDefault();
+    
+    const selectedMonth = document.getElementById('reportMonth').value;
+    const format = document.getElementById('reportFormat').value;
+    const includeCharts = document.getElementById('includeCharts').checked;
+    
+    // Get complaints for the selected month and department
+    const reportData = getMonthlyReportData(selectedMonth);
+    
+    // Generate report based on format
+    switch(format) {
+        case 'pdf':
+            generatePDFReport(reportData, selectedMonth, includeCharts);
+            break;
+        case 'csv':
+            generateCSVReport(reportData, selectedMonth);
+            break;
+        case 'excel':
+            generateExcelReport(reportData, selectedMonth);
+            break;
+    }
+    
+    closeModal('monthlyReportModal');
+    showNotification('Report generated successfully!', 'success');
+}
+
+function getMonthlyReportData(selectedMonth) {
+    const [year, month] = selectedMonth.split('-');
+    const departmentComplaints = getDepartmentComplaints();
+    
+    // Filter complaints for the selected month
+    const monthlyComplaints = departmentComplaints.filter(complaint => {
+        const complaintDate = new Date(complaint.submittedAt);
+        return complaintDate.getFullYear() == year && 
+               (complaintDate.getMonth() + 1) == parseInt(month);
+    });
+    
+    // Generate statistics
+    const stats = {
+        totalComplaints: monthlyComplaints.length,
+        pending: monthlyComplaints.filter(c => c.status === 'pending').length,
+        processing: monthlyComplaints.filter(c => c.status === 'processing').length,
+        resolved: monthlyComplaints.filter(c => c.status === 'resolved').length,
+        escalated: monthlyComplaints.filter(c => c.status === 'escalated').length
+    };
+    
+    // Category breakdown
+    const categories = {};
+    monthlyComplaints.forEach(complaint => {
+        categories[complaint.category] = (categories[complaint.category] || 0) + 1;
+    });
+    
+    return {
+        complaints: monthlyComplaints,
+        stats: stats,
+        categories: categories,
+        department: currentUser.department,
+        month: selectedMonth
+    };
+}
+
+function generatePDFReport(data, month, includeCharts) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Title
+    doc.setFontSize(20);
+    doc.text('Monthly Complaint Report', 20, 20);
+    
+    // Report details
+    doc.setFontSize(12);
+    doc.text(`Department: ${data.department}`, 20, 35);
+    doc.text(`Month: ${month}`, 20, 45);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 55);
+    
+    // Summary statistics
+    doc.setFontSize(16);
+    doc.text('Summary Statistics:', 20, 75);
+    
+    doc.setFontSize(12);
+    let yPos = 90;
+    doc.text(`Total Complaints: ${data.stats.totalComplaints}`, 20, yPos);
+    doc.text(`Pending: ${data.stats.pending}`, 20, yPos + 10);
+    doc.text(`Processing: ${data.stats.processing}`, 20, yPos + 20);
+    doc.text(`Resolved: ${data.stats.resolved}`, 20, yPos + 30);
+    doc.text(`Escalated: ${data.stats.escalated}`, 20, yPos + 40);
+    
+    // Category breakdown
+    yPos += 60;
+    doc.setFontSize(16);
+    doc.text('Category Breakdown:', 20, yPos);
+    
+    yPos += 15;
+    doc.setFontSize(12);
+    Object.entries(data.categories).forEach(([category, count]) => {
+        doc.text(`${category}: ${count}`, 20, yPos);
+        yPos += 10;
+    });
+    
+    // Detailed complaints list
+    if (data.complaints.length > 0) {
+        doc.addPage();
+        doc.setFontSize(16);
+        doc.text('Detailed Complaints:', 20, 20);
+        
+        yPos = 35;
+        doc.setFontSize(10);
+        
+        data.complaints.forEach((complaint, index) => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            const student = users.find(u => u.id === complaint.studentId);
+            doc.text(`${index + 1}. ID: ${complaint.id}`, 20, yPos);
+            doc.text(`   Title: ${complaint.title}`, 20, yPos + 8);
+            doc.text(`   Student: ${student ? student.name : 'Unknown'}`, 20, yPos + 16);
+            doc.text(`   Category: ${complaint.category}`, 20, yPos + 24);
+            doc.text(`   Status: ${complaint.status}`, 20, yPos + 32);
+            doc.text(`   Date: ${new Date(complaint.submittedAt).toLocaleDateString()}`, 20, yPos + 40);
+            
+            yPos += 50;
+        });
+    }
+    
+    // Download the PDF
+    doc.save(`Monthly_Report_${data.department}_${month}.pdf`);
+}
+
+function generateCSVReport(data, month) {
+    let csvContent = "ID,Title,Student Name,Student ID,Category,Status,Submitted Date,Description\n";
+    
+    data.complaints.forEach(complaint => {
+        const student = users.find(u => u.id === complaint.studentId);
+        const row = [
+            complaint.id,
+            `"${complaint.title}"`,
+            `"${student ? student.name : 'Unknown'}"`,
+            `"${student ? student.studentId : 'N/A'}"`,
+            complaint.category,
+            complaint.status,
+            new Date(complaint.submittedAt).toLocaleDateString(),
+            `"${complaint.description.replace(/"/g, '""')}"`
+        ].join(',');
+        csvContent += row + "\n";
+    });
+    
+    // Add summary at the end
+    csvContent += "\n\nSUMMARY\n";
+    csvContent += `Department,${data.department}\n`;
+    csvContent += `Month,${month}\n`;
+    csvContent += `Total Complaints,${data.stats.totalComplaints}\n`;
+    csvContent += `Pending,${data.stats.pending}\n`;
+    csvContent += `Processing,${data.stats.processing}\n`;
+    csvContent += `Resolved,${data.stats.resolved}\n`;
+    csvContent += `Escalated,${data.stats.escalated}\n`;
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Monthly_Report_${data.department}_${month}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
+
+function generateExcelReport(data, month) {
+    // For Excel, we'll generate a more detailed CSV that can be opened in Excel
+    let excelContent = "Monthly Complaint Report\n";
+    excelContent += `Department: ${data.department}\n`;
+    excelContent += `Month: ${month}\n`;
+    excelContent += `Generated on: ${new Date().toLocaleDateString()}\n\n`;
+    
+    excelContent += "SUMMARY STATISTICS\n";
+    excelContent += `Total Complaints,${data.stats.totalComplaints}\n`;
+    excelContent += `Pending,${data.stats.pending}\n`;
+    excelContent += `Processing,${data.stats.processing}\n`;
+    excelContent += `Resolved,${data.stats.resolved}\n`;
+    excelContent += `Escalated,${data.stats.escalated}\n\n`;
+    
+    excelContent += "CATEGORY BREAKDOWN\n";
+    Object.entries(data.categories).forEach(([category, count]) => {
+        excelContent += `${category},${count}\n`;
+    });
+    
+    excelContent += "\nDETAILED COMPLAINTS\n";
+    excelContent += "ID,Title,Student Name,Student ID,Category,Status,Submitted Date,Description\n";
+    
+    data.complaints.forEach(complaint => {
+        const student = users.find(u => u.id === complaint.studentId);
+        const row = [
+            complaint.id,
+            `"${complaint.title}"`,
+            `"${student ? student.name : 'Unknown'}"`,
+            `"${student ? student.studentId : 'N/A'}"`,
+            complaint.category,
+            complaint.status,
+            new Date(complaint.submittedAt).toLocaleDateString(),
+            `"${complaint.description.replace(/"/g, '""')}"`
+        ].join(',');
+        excelContent += row + "\n";
+    });
+    
+    // Download as Excel-compatible CSV
+    const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Monthly_Report_${data.department}_${month}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+}
