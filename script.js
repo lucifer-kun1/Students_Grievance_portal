@@ -1270,7 +1270,7 @@ function generateCSVReport(data, month) {
 }
 
 function generateExcelReport(data, month) {
-    // For Excel, we'll generate a more detailed CSV that can be opened in Excel
+    
     let excelContent = "Monthly Complaint Report\n";
     excelContent += `Department: ${data.department}\n`;
     excelContent += `Month: ${month}\n`;
@@ -1315,3 +1315,4 @@ function generateExcelReport(data, month) {
     a.click();
     window.URL.revokeObjectURL(url);
 }
+
